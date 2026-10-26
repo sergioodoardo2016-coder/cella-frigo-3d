@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digital Twin 3D - Cella Frigo</title>
+    <style>
+        body { margin: 0; background-color: #1e1e24; color: #fff; font-family: sans-serif; overflow: hidden; }
+        #canvas3d { width: 100vw; height: 100vh; perspective: 1000px; display: flex; align-items: center; justify-content: center; }
+        #spazio-cella { width: 400px; height: 400px; transform-style: preserve-3d; transform: rotateX(-30deg) rotateY(45deg); transition: transform 0.1s; }
+        .cassone { position: absolute; width: 35px; height: 35px; transform-style: preserve-3d; }
+        .faccia { position: absolute; width: 35px; height: 35px; border: 1px solid rgba(255,255,255,0.2); box-sizing: border-box; }
+        .front  { transform: translateZ(17.5px); background: rgba(0, 122, 255, 0.75); }
+        .back   { transform: rotateY(180deg) translateZ(17.5px); background: rgba(0, 100, 220, 0.75); }
+        .right  { transform: rotateY(90deg) translateZ(17.5px); background: rgba(0, 90, 200, 0.75); }
+        .left   { transform: rotateY(-90deg) translateZ(17.5px); background: rgba(0, 90, 200, 0.75); }
+        .top    { transform: rotateX(90deg) translateZ(17.5px); background: rgba(30, 144, 255, 0.85); }
+        .bottom { transform: rotateX(-90deg) translateZ(17.5px); background: rgba(0, 70, 170, 0.75); }
+        #info-box { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.7); padding: 10px; border-radius: 5px; }
+    </style>
+</head>
+<body>
+
+    <div id="info-box">
+        <h3 id="titolo-cella">Caricamento Cella...</h3>
+        <p>Usa il trascinamento del mouse per ruotare la cella</p>
+    </div>
+
+    <div id="canvas3d">
+        <div id="spazio-cella"></div>
+    </div>
+
+    <script>
+        const configurazioneCelle = {
+            "CELLA 1": { x: 8, y: 8, z: 8 }
+        };
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const cellaAttiva = urlParams.get('cella') || 'CELLA 1';
+        document.getElementById('titolo-cella').innerText = cellaAttiva;
+
+        const limiti = configurazioneCelle[cellaAttiva] || { x: 8, y: 8, z: 8 };
+        const spazioCella = document.getElementById('spazio-cella');
+
+        function creaCassone3D(x, y, z) {
+            const c = document.createElement('div');
+            c.className = 'cassone';
+            const posX = (x - limiti.x / 2) * 40;
+            const posY = (y - limiti.y / 2) * 40;
+            const posZ = (z - 1) * 40;
+            
+            c.style.transform = `translateX(${posX}px) translateY(${posY}px) translateZ(${posZ}px)`;
+            c.innerHTML = `
+                <div class="faccia front"></div><div class="faccia back"></div>
+                <div class="faccia right"></div><div class="faccia left"></div>
+                <div class="faccia top"></div><div class="faccia bottom"></div>
+            `;
+            spazioCella.appendChild(c);
+        }
+
+        function aggiornaCellaDaDati(datiExcel) {
+            spazioCella.innerHTML = ''; 
+            const cassoniDaDisegnare = datiExcel.filter(riga => riga.Cella === cellaAttiva && riga.Stato === 'Occupato');
+            cassoniDaDisegnare.forEach(cassone => {
+                creaCassone3D(cassone.Posizione_X, cassone.Posizione_Y, cassone.Posizione_Z);
+            });
+        }
+
+        // --- INTEGRAZIONE CON EXCEL ONEDRIVE TRAMITE APPSHEET ---
+        // Questa funzione riceve i messaggi inviati direttamente da AppSheet in tempo reale
+        window.addEventListener('message', function(event) {
+            if (event.data && event.data.type === 'AppSheetData') {
+                aggiornaCellaDaDati(event.data.rows);
+            }
+        });
+
+        // --- ROTAZIONE VISTA ---
+        let gradoX = -30, gradoY = 45, isDragging = false, prevX, prevY;
+        window.addEventListener('mousedown', e => { isDragging = true; prevX = e.clientX; prevY = e.clientY; });
+        window.addEventListener('mousemove', e => {
+            if (!isDragging) return;
+            gradoY += (e.clientX - prevX) * 0.5;
+            gradoX -= (e.clientY - prevY) * 0.5;
+            spazioCella.style.transform = `rotateX(${gradoX}deg) rotateY(${gradoY}deg)`;
+            prevX = e.clientX; prevY = e.clientY;
+        });
+        window.addEventListener('mouseup', () => isDragging = false);
+    </script>
+</body>
+</html>
